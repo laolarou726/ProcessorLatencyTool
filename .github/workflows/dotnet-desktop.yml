@@ -54,31 +54,32 @@ jobs:
 
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
-        run: dotnet publish -c Release -r win-${{ env.Os }} --no-restore
+        run: dotnet publish -c Release -r win-${{ env.Target }} --no-restore
         working-directory: ./ProcessorLatencyTool
         env:
-          Os: ${{ matrix.os }}
+          Target: ${{ matrix.target }}
 
       - name: Build (macOS)
         if: matrix.os == 'macos-latest'
-        run: dotnet publish -c Release -r osx-${{ env.Os }} --no-restore
+        run: dotnet publish -c Release -r osx-${{ env.Target }} --no-restore
         working-directory: ./ProcessorLatencyTool
         env:
-          Os: ${{ matrix.os }}
+          Target: ${{ matrix.target }}
 
       - name: Build (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: dotnet publish -c Release -r linux-${{ env.Os }} --no-restore
+        run: dotnet publish -c Release -r linux-${{ env.Target }} --no-restore
         working-directory: ./ProcessorLatencyTool
         env:
-          Os: ${{ matrix.os }}
+          Target: ${{ matrix.target }}
 
       - name: Compress Build Files (Windows)
         if: matrix.os == 'windows-latest'
-        run: Compress-Archive -Path publish -DestinationPath ${{ env.OS }}.zip
+        run: Compress-Archive -Path publish -DestinationPath ${{ env.OS }}_${{ env.Target }}.zip
         working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
         env:
           OS: ${{ matrix.os }}
+          Target: ${{ matrix.target }}
 
       - name: Compress Build Files (Unix)
         if: (matrix.os == 'macos-latest') || (matrix.os == 'ubuntu-latest')
