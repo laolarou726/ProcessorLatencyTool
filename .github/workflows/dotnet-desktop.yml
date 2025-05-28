@@ -38,6 +38,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
+        target: [x64, arm64]
 
     runs-on: ${{ matrix.os }}
 
@@ -51,9 +52,26 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build
-        run: dotnet publish -c Release --no-restore
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: dotnet publish -c Release -r win-${{ env.Os }} --no-restore
         working-directory: ./ProcessorLatencyTool
+        env:
+          Os: ${{ matrix.os }}
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        run: dotnet publish -c Release -r osx-${{ env.Os }} --no-restore
+        working-directory: ./ProcessorLatencyTool
+        env:
+          Os: ${{ matrix.os }}
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet publish -c Release -r linux-${{ env.Os }} --no-restore
+        working-directory: ./ProcessorLatencyTool
+        env:
+          Os: ${{ matrix.os }}
 
       - name: Compress Build Files (Windows)
         if: matrix.os == 'windows-latest'
