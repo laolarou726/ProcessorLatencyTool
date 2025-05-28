@@ -75,18 +75,18 @@ jobs:
 
       - name: Compress Build Files (Windows)
         if: matrix.os == 'windows-latest'
-        run: Compress-Archive -Path publish -DestinationPath ${{ env.OS }}_${{ env.Target }}.zip
-        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
-        env:
-          OS: ${{ matrix.os }}
-          Target: ${{ matrix.target }}
+        run: Compress-Archive -Path publish -DestinationPath Windows_${{ matrix.target }}.zip
+        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0/win-${{ matrix.target }}
 
-      - name: Compress Build Files (Unix)
-        if: (matrix.os == 'macos-latest') || (matrix.os == 'ubuntu-latest')
-        run: zip -9 -r ${{ env.OS }}.zip publish
-        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
-        env:
-          OS: ${{ matrix.os }}
+      - name: Compress Build Files (macOS)
+        if: matrix.os == 'macos-latest'
+        run: zip -9 -r macOS_${{ matrix.target }}.zip publish
+        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0/osx-${{ matrix.target }}
+
+      - name: Compress Build Files (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: zip -9 -r Linux_${{ matrix.target }}.zip publish
+        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0/linux-${{ matrix.target }}
 
       - name: Upload Built Binaries
         env:
