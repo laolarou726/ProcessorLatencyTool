@@ -1,4 +1,4 @@
-# ProcessorLatencyTool
+# :timer_clock: ProcessorLatencyTool
 
 ![GitHub](https://img.shields.io/github/license/laolarou726/ProcessorLatencyTool?logo=github&style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2025?logo=diaspora&style=for-the-badge)
