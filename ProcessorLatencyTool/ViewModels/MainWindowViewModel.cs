@@ -12,6 +12,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Win32;
+using ProcessorLatencyTool.Helpers.LatencyTester;
+using ProcessorLatencyTool.Models;
 
 namespace ProcessorLatencyTool.ViewModels
 {
@@ -110,14 +112,14 @@ namespace ProcessorLatencyTool.ViewModels
             if (_mainPanel == null) return;
 
             var coreCount = Environment.ProcessorCount;
-            var matrix = new HighPrecisionLatencyTester.LatencyResult[coreCount][];
+            var matrix = new LatencyResult[coreCount][];
 
             for (var i = 0; i < coreCount; i++)
             {
-                matrix[i] = new HighPrecisionLatencyTester.LatencyResult[coreCount];
+                matrix[i] = new LatencyResult[coreCount];
                 for (var j = 0; j < coreCount; j++)
                 {
-                    matrix[i][j] = new HighPrecisionLatencyTester.LatencyResult
+                    matrix[i][j] = new LatencyResult
                     {
                         MeanLatency = 0,
                         StandardDeviation = 0,
@@ -169,7 +171,7 @@ namespace ProcessorLatencyTool.ViewModels
             });
         }
 
-        private static void BuildLatencyGrid(HighPrecisionLatencyTester.LatencyResult[][] matrix, StackPanel panel, bool isInit = false)
+        private static void BuildLatencyGrid(LatencyResult[][] matrix, StackPanel panel, bool isInit = false)
         {
             var grid = new Grid
             {
@@ -266,14 +268,15 @@ namespace ProcessorLatencyTool.ViewModels
             panel.Children.Add(grid);
         }
 
-        private async Task<HighPrecisionLatencyTester.LatencyResult[][]> MeasureLatencyMatrixAsync(
+        private async Task<LatencyResult[][]> MeasureLatencyMatrixAsync(
             IProgress<(int i, int j)>? progress = null)
         {
             var coreCount = Environment.ProcessorCount;
-            var matrix = new HighPrecisionLatencyTester.LatencyResult[coreCount][];
+            var matrix = new LatencyResult[coreCount][];
+            var latencyTester = LatencyTesterBase.Create();
 
             for (var i = 0; i < coreCount; i++)
-                matrix[i] = new HighPrecisionLatencyTester.LatencyResult[coreCount];
+                matrix[i] = new LatencyResult[coreCount];
 
             for (var i = 0; i < coreCount; i++)
             {
@@ -281,7 +284,7 @@ namespace ProcessorLatencyTool.ViewModels
                 {
                     if (i == j)
                     {
-                        matrix[i][j] = new HighPrecisionLatencyTester.LatencyResult
+                        matrix[i][j] = new LatencyResult
                         {
                             MeanLatency = 0,
                             StandardDeviation = 0,
@@ -298,7 +301,7 @@ namespace ProcessorLatencyTool.ViewModels
                     try
                     {
                         matrix[i][j] = await Task.Run(() =>
-                            HighPrecisionLatencyTester.MeasureLatencyBetweenCores(i, j)
+                            latencyTester.MeasureLatencyBetweenCores(i, j)
                         );
 
                         // Update the grid after each measurement
@@ -312,7 +315,7 @@ namespace ProcessorLatencyTool.ViewModels
                     }
                     catch (Exception)
                     {
-                        matrix[i][j] = new HighPrecisionLatencyTester.LatencyResult
+                        matrix[i][j] = new LatencyResult
                         {
                             MeanLatency = -1,
                             StandardDeviation = 0,
