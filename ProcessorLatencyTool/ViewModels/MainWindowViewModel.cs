@@ -10,8 +10,8 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using System.Management;
 using System.Diagnostics;
+using Microsoft.Win32;
 
 namespace ProcessorLatencyTool.ViewModels
 {
@@ -23,11 +23,10 @@ namespace ProcessorLatencyTool.ViewModels
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor");
-                    foreach (var obj in searcher.Get())
-                    {
-                        return obj["Name"].ToString() ?? "Unknown CPU";
-                    }
+                    using var key = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+                    var processorName = key?.GetValue("ProcessorNameString")?.ToString()?.Trim();
+
+                    return processorName ?? "Unknown CPU";
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
