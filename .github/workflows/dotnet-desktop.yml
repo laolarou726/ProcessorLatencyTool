@@ -88,12 +88,31 @@ jobs:
         run: zip -9 -r Linux_${{ matrix.target }}.zip publish
         working-directory: ./ProcessorLatencyTool/bin/Release/net9.0/linux-${{ matrix.target }}
 
-      - name: Upload Built Binaries
+      - name: Upload Built Binaries (Windows)
+        if: matrix.os == 'windows-latest'
         env:
           OS: ${{ matrix.os }}
           GH_TOKEN: ${{ secrets.PUBLISHTOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "${{ needs.release.outputs.tag }}" "${{ env.OS }}.zip"
+        run: gh release upload "${{ needs.release.outputs.tag }}" "Windows_${{ matrix.target }}.zip"
+        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
+
+      - name: Upload Built Binaries (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          OS: ${{ matrix.os }}
+          GH_TOKEN: ${{ secrets.PUBLISHTOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ needs.release.outputs.tag }}" "macOS_${{ matrix.target }}.zip"
+        working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
+
+      - name: Upload Built Binaries (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          OS: ${{ matrix.os }}
+          GH_TOKEN: ${{ secrets.PUBLISHTOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ needs.release.outputs.tag }}" "Linux_${{ matrix.target }}.zip"
         working-directory: ./ProcessorLatencyTool/bin/Release/net9.0
 
   publish:
