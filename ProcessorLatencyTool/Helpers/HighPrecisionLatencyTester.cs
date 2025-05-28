@@ -22,6 +22,93 @@ public static unsafe partial class HighPrecisionLatencyTester
         public bool Value;
     }
 
+    // macOS specific constants
+    private const int QOS_CLASS_USER_INTERACTIVE = 0x21;
+    private const int THREAD_AFFINITY_POLICY = 4;
+    private const int THREAD_AFFINITY_POLICY_COUNT = 1;
+
+    // macOS thread affinity policy structure
+    [StructLayout(LayoutKind.Sequential)]
+    private struct thread_affinity_policy_data_t
+    {
+        public int affinity_tag;
+    }
+
+    // macOS processor set APIs
+    [LibraryImport("libSystem.dylib", EntryPoint = "processor_set_default")]
+    private static partial int processor_set_default(
+        int host,
+        ref int pset);
+
+    [LibraryImport("libSystem.dylib", EntryPoint = "host_processor_set_priv")]
+    private static partial int host_processor_set_priv(
+        int host,
+        int pset,
+        ref int pset_priv);
+
+    [LibraryImport("libSystem.dylib", EntryPoint = "host_self")]
+    private static partial int host_self();
+
+    [LibraryImport("libSystem.dylib", EntryPoint = "thread_assign")]
+    private static partial int thread_assign(
+        int thread,
+        int pset);
+
+    // macOS specific P/Invoke declarations
+    [LibraryImport("libSystem.dylib", EntryPoint = "pthread_set_qos_class_self_np")]
+    private static partial int pthread_set_qos_class_self_np(int qos_class, int relative_priority);
+
+    [LibraryImport("libSystem.dylib", EntryPoint = "thread_policy_set")]
+    private static partial int thread_policy_set(
+        int thread,
+        int policy,
+        thread_affinity_policy_data_t* policy_info,
+        int count);
+
+    [LibraryImport("libSystem.dylib", EntryPoint = "mach_thread_self")]
+    private static partial int MachThreadSelf();
+
+    // Native ARM64 register access
+    [LibraryImport("arm64_registers", EntryPoint = "read_tpidr_el0")]
+    private static partial ulong ReadTpidrEl0();
+
+    [LibraryImport("arm64_registers", EntryPoint = "read_cntvct_el0")]
+    private static partial ulong ReadCntvctEl0();
+
+    [LibraryImport("arm64_registers", EntryPoint = "read_cntfrq_el0")]
+    private static partial ulong ReadCntfrqEl0();
+
+    private static ulong GetCurrentCore()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && 
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            return ReadTpidrEl0();
+        }
+        return 0;
+    }
+
+    private static ulong GetCurrentTimer()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && 
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            return ReadCntvctEl0();
+        }
+        return (ulong)Stopwatch.GetTimestamp();
+    }
+
+    private static double GetTimerPeriodNs()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && 
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            var freq = ReadCntfrqEl0();
+            return 1.0 / freq * 1_000_000_000.0;
+        }
+        return 1_000_000_000.0 / Stopwatch.Frequency;
+    }
+
     public static LatencyResult MeasureLatencyBetweenCores(int coreA, int coreB)
     {
         var barrier = new Barrier(2);
@@ -32,7 +119,14 @@ public static unsafe partial class HighPrecisionLatencyTester
         var pongTask = Task.Run(() =>
         {
             SetThreadAffinity(coreB);
-            Thread.CurrentThread.Priority = ThreadPriority.Highest;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+            }
+            else
+            {
+                Thread.CurrentThread.Priority = ThreadPriority.Highest;
+            }
             barrier.SignalAndWait();
 
             var value = false;
@@ -45,21 +139,33 @@ public static unsafe partial class HighPrecisionLatencyTester
         });
 
         SetThreadAffinity(coreA);
-        Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+        }
+        else
+        {
+            Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        }
         barrier.SignalAndWait();
 
         var value = true;
         for (var sample = 0; sample < NumSamples; sample++)
         {
-            var start = Stopwatch.GetTimestamp();
+            var start = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? 
+                GetCurrentTimer() : (ulong)Stopwatch.GetTimestamp();
+            
             for (var trip = 0; trip < NumRoundTrips; trip++)
             {
                 while (Volatile.Read(ref ownedByPong.Value) != value) { }
                 Volatile.Write(ref ownedByPing.Value, value);
                 value = !value;
             }
-            var end = Stopwatch.GetTimestamp();
-            var duration = (end - start) * (1_000_000_000.0 / Stopwatch.Frequency);
+            
+            var end = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? 
+                GetCurrentTimer() : (ulong)Stopwatch.GetTimestamp();
+                
+            var duration = (end - start) * GetTimerPeriodNs();
             results.Add(duration / NumRoundTrips / 2.0); // Divide by 2 for one-way latency
         }
 
@@ -159,14 +265,87 @@ public static unsafe partial class HighPrecisionLatencyTester
     [SupportedOSPlatform("osx")]
     private static void SetThreadAffinityMacOs(int core)
     {
-        var result = thread_policy_set(
-            MachThreadSelf(),
-            ThreadAffinityPolicy,
-            &core,
-            ThreadAffinityPolicyCount);
-        if (result != 0)
+        try
         {
-            throw new Exception($"Failed to set thread affinity: {result}");
+            var thread = MachThreadSelf();
+            var host = host_self();
+            var pset = 0;
+            var pset_priv = 0;
+
+            // Get the default processor set
+            var result = processor_set_default(host, ref pset);
+            if (result != 0)
+            {
+                // If we can't get processor set access, try a simpler approach
+                var policy = new thread_affinity_policy_data_t { affinity_tag = core };
+                result = thread_policy_set(
+                    thread,
+                    THREAD_AFFINITY_POLICY,
+                    &policy,
+                    THREAD_AFFINITY_POLICY_COUNT);
+                if (result != 0)
+                {
+                    Console.WriteLine($"Warning: Could not set thread affinity. The application may need to be run with sudo for accurate measurements.");
+                    return; // Continue without affinity rather than throwing
+                }
+                return;
+            }
+
+            // Get privileged access to the processor set
+            result = host_processor_set_priv(host, pset, ref pset_priv);
+            if (result != 0)
+            {
+                // Fall back to simple affinity policy
+                var policy = new thread_affinity_policy_data_t { affinity_tag = core };
+                result = thread_policy_set(
+                    thread,
+                    THREAD_AFFINITY_POLICY,
+                    &policy,
+                    THREAD_AFFINITY_POLICY_COUNT);
+                if (result != 0)
+                {
+                    Console.WriteLine($"Warning: Could not set thread affinity. The application may need to be run with sudo for accurate measurements.");
+                    return; // Continue without affinity rather than throwing
+                }
+                return;
+            }
+
+            // Assign thread to processor set
+            result = thread_assign(thread, pset_priv);
+            if (result != 0)
+            {
+                // Fall back to simple affinity policy
+                var policy = new thread_affinity_policy_data_t { affinity_tag = core };
+                result = thread_policy_set(
+                    thread,
+                    THREAD_AFFINITY_POLICY,
+                    &policy,
+                    THREAD_AFFINITY_POLICY_COUNT);
+                if (result != 0)
+                {
+                    Console.WriteLine($"Warning: Could not set thread affinity. The application may need to be run with sudo for accurate measurements.");
+                    return; // Continue without affinity rather than throwing
+                }
+                return;
+            }
+
+            // Set thread affinity policy
+            var finalPolicy = new thread_affinity_policy_data_t { affinity_tag = core };
+            result = thread_policy_set(
+                thread,
+                THREAD_AFFINITY_POLICY,
+                &finalPolicy,
+                THREAD_AFFINITY_POLICY_COUNT);
+            if (result != 0)
+            {
+                Console.WriteLine($"Warning: Could not set thread affinity. The application may need to be run with sudo for accurate measurements.");
+                return; // Continue without affinity rather than throwing
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Error setting thread affinity: {ex.Message}");
+            // Continue without affinity rather than throwing
         }
     }
 
@@ -178,17 +357,4 @@ public static unsafe partial class HighPrecisionLatencyTester
 
     [LibraryImport("libc", EntryPoint = "sched_setaffinity", SetLastError = true)]
     private static partial int SchedSetAffinity(int pid, int cpusetsize, UIntPtr* mask);
-
-    [LibraryImport("libSystem.dylib", EntryPoint = "thread_policy_set")]
-    private static partial int thread_policy_set(
-        int thread,
-        int policy,
-        int* policy_info,
-        int count);
-
-    private const int ThreadAffinityPolicy = 4;
-    private const int ThreadAffinityPolicyCount = 1;
-
-    [LibraryImport("libSystem.dylib", EntryPoint = "mach_thread_self")]
-    private static partial int MachThreadSelf();
 }

@@ -1,4 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
@@ -10,6 +11,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NativeOutputDir>$(MSBuildProjectDirectory)/runtimes/osx/native</NativeOutputDir>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
@@ -36,17 +41,41 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- Native library build -->
+  <Target Name="BuildNativeLibrary" BeforeTargets="Build" Condition="'$(OS)' == 'Unix'">
+    <!-- Create output directory -->
+    <MakeDir Directories="$(NativeOutputDir)" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)/Native/build" />
+
+    <!-- Run CMake -->
+    <Exec Command="cmake -DCMAKE_BUILD_TYPE=$(Configuration) -DCMAKE_INSTALL_PREFIX=$(NativeOutputDir) .." 
+          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+    <Exec Command="cmake --build . --config $(Configuration)" 
+          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+    <Exec Command="cmake --install ." 
+          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+
+    <!-- Copy to output directory -->
+    <ItemGroup>
+      <NativeLibraries Include="$(NativeOutputDir)/*arm64_registers.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeLibraries)" 
+          DestinationFolder="$(OutputPath)/runtimes/osx/native" />
+  </Target>
+
+  <!-- Include native libraries in build output -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.2.8" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.8" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.8" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.8" />
-    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.8">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
-    <PackageReference Include="System.Management" Version="9.0.4" />
+    <Content Include="runtimes\osx\native\*arm64_registers.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.0.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.0.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.6" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
   </ItemGroup>
 </Project>
