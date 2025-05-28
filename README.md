@@ -1,4 +1,10 @@
-# ProcessorLatencyTool
+# :timer_clock: ProcessorLatencyTool
+
+![GitHub](https://img.shields.io/github/license/laolarou726/ProcessorLatencyTool?logo=github&style=for-the-badge)
+![Maintenance](https://img.shields.io/maintenance/yes/2025?logo=diaspora&style=for-the-badge)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/laolarou726/ProcessorLatencyTool?style=for-the-badge)
+![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed/laolarou726/ProcessorLatencyTool?logo=github&style=for-the-badge)
+![GitHub repo size](https://img.shields.io/github/repo-size/laolarou726/ProcessorLatencyTool?logo=github&style=for-the-badge)
 
 This is a simple tool used to test the latency of the CPU. Fully cross-platform support. Powered by AvaloniaUI and managed C#.
 
