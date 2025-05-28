@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ProcessorLatencyTool.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="ProcessorLatencyTool.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Processor Latency Test Tool">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition MinHeight="80" Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Background="DimGray">
+            <StackPanel VerticalAlignment="Center"
+                        Margin="40, 10"
+                        Spacing="5">
+                <TextBlock Text="{Binding CpuModel}"
+                           FontWeight="Bold"
+                           Foreground="White" />
+                <TextBlock Text="{Binding CoreThreadInfo}"
+                           FontWeight="Bold"
+                           Foreground="White" />
+            </StackPanel>
+
+            <Button Command="{Binding StartMeasurementCommand}"
+                    Background="SpringGreen"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Content="Start Test"
+                    Margin="0, 0, 40, 0"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" 
+                     HorizontalScrollBarVisibility="Auto"
+                     VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="MainPanel" 
+                       Margin="10"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
+        </ScrollViewer>
+
+        <!-- Semi-transparent overlay -->
+        <Grid Grid.Row="1"
+              Background="#80000000"
+              IsHitTestVisible="False"
+              IsVisible="{Binding StartMeasurementCommand.IsRunning}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="20">
+                <TextBlock Text="{Binding ProgressText}"
+                           Padding="30, 0"
+                           Foreground="White"
+                           FontWeight="Bold"
+                           FontSize="24"
+                           HorizontalAlignment="Center" />
+
+                <ProgressBar Width="300"
+                             Height="20"
+                             IsIndeterminate="False"
+                             Foreground="SpringGreen"
+                             Value="{Binding ProgressValue}"
+                             Maximum="100" />
+
+                <TextBlock Text="{Binding ProgressPercentage}"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

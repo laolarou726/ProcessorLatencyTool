@@ -1,0 +1,3 @@
+GetCurrentThread
+SetThreadAffinityMask
+VirtualProtect
