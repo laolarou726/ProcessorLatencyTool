@@ -11,10 +11,16 @@ if(APPLE)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_INSTALL_PREFIX})
 endif()
 
+# Find pthread package
+find_package(Threads REQUIRED)
+
 # Add library
 add_library(arm64_registers SHARED
     arm64_registers.c
 )
+
+# Link against pthread
+target_link_libraries(arm64_registers PRIVATE Threads::Threads)
 
 # Set output name
 if(APPLE)
