@@ -18,7 +18,7 @@ This is a simple tool used to test the latency of the CPU. Fully cross-platform 
 |:-------|:-------------------------------------------------|
 |Windows |:white_check_mark: Fully Support                  |
 |macOS   |:construction: Result looks incorrect, help needed|
-|Windows |:white_check_mark: Fully Support                  |
+|Linux   |:white_check_mark: Fully Support                  |
 
 ## :notebook: How to use?
 
