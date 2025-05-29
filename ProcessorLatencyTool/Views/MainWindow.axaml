@@ -33,12 +33,19 @@
                            Foreground="White" />
             </StackPanel>
 
-            <Button Command="{Binding StartMeasurementCommand}"
-                    Background="SpringGreen"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Content="Start Test"
-                    Margin="0, 0, 40, 0"/>
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Spacing="10"
+                        Margin="0, 0, 40, 0">
+                <Button Command="{Binding ExportToCsvCommand}"
+                        Background="DodgerBlue"
+                        Content="Export CSV"
+                        IsEnabled="{Binding HasResults}"/>
+                <Button Command="{Binding StartMeasurementCommand}"
+                        Background="SpringGreen"
+                        Content="Start Test"/>
+            </StackPanel>
         </Grid>
 
         <ScrollViewer Grid.Row="1" 

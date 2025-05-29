@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <LangVersion>preview</LangVersion>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -48,19 +49,15 @@
     <MakeDir Directories="$(MSBuildProjectDirectory)/Native/build" />
 
     <!-- Run CMake -->
-    <Exec Command="cmake -DCMAKE_BUILD_TYPE=$(Configuration) -DCMAKE_INSTALL_PREFIX=$(NativeOutputDir) .." 
-          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
-    <Exec Command="cmake --build . --config $(Configuration)" 
-          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
-    <Exec Command="cmake --install ." 
-          WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+    <Exec Command="cmake -DCMAKE_BUILD_TYPE=$(Configuration) -DCMAKE_INSTALL_PREFIX=$(NativeOutputDir) .." WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+    <Exec Command="cmake --build . --config $(Configuration)" WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
+    <Exec Command="cmake --install ." WorkingDirectory="$(MSBuildProjectDirectory)/Native/build" />
 
     <!-- Copy to output directory -->
     <ItemGroup>
       <NativeLibraries Include="$(NativeOutputDir)/*arm64_registers.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(NativeLibraries)" 
-          DestinationFolder="$(OutputPath)/runtimes/osx/native" />
+    <Copy SourceFiles="@(NativeLibraries)" DestinationFolder="$(OutputPath)/runtimes/osx/native" />
   </Target>
 
   <!-- Include native libraries in build output -->
@@ -72,10 +69,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.0.6" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.0.6" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.6" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.6" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Avalonia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
   </ItemGroup>
 </Project>

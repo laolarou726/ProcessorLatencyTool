@@ -1,7 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using System.Runtime.InteropServices;
 using System;
 using CommunityToolkit.Mvvm.Input;
 using System.Linq;
@@ -10,96 +9,29 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using System.Diagnostics;
-using Microsoft.Win32;
 using ProcessorLatencyTool.Helpers.LatencyTester;
 using ProcessorLatencyTool.Models;
+using System.IO;
+using System.Text;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 
 namespace ProcessorLatencyTool.ViewModels
 {
     public partial class MainWindowViewModel : ViewModelBase
     {
-        public static string CpuModel
-        {
-            get
-            {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    using var key = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
-                    var processorName = key?.GetValue("ProcessorNameString")?.ToString()?.Trim();
-
-                    return processorName ?? "Unknown CPU";
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    try
-                    {
-                        var startInfo = new ProcessStartInfo
-                        {
-                            FileName = "cat",
-                            Arguments = "/proc/cpuinfo",
-                            RedirectStandardOutput = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-
-                        using var process = Process.Start(startInfo);
-                        if (process != null)
-                        {
-                            var output = process.StandardOutput.ReadToEnd();
-                            process.WaitForExit();
-                            var modelName = output.Split('\n')
-                                .FirstOrDefault(line => line.StartsWith("model name"))
-                                ?.Split(':')
-                                .LastOrDefault()
-                                ?.Trim();
-                            return modelName ?? "Unknown CPU";
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    try
-                    {
-                        var startInfo = new ProcessStartInfo
-                        {
-                            FileName = "sysctl",
-                            Arguments = "-n machdep.cpu.brand_string",
-                            RedirectStandardOutput = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-
-                        using var process = Process.Start(startInfo);
-                        if (process != null)
-                        {
-                            var output = process.StandardOutput.ReadToEnd();
-                            process.WaitForExit();
-                            return output.Trim();
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
-                }
-
-                return "Unknown CPU";
-            }
-        }
+        public static string CpuModel => SystemInfoHelper.GetProcessorName();
 
         public static string CoreThreadInfo => $"Cores: {Environment.ProcessorCount}";
 
-        [ObservableProperty] private string _progressText = "Testing latency...";
-        [ObservableProperty] private string _statusText = "Ready";
-        [ObservableProperty] private double _progressValue;
-        [ObservableProperty] private string _progressPercentage = "0%";
+        [ObservableProperty] public partial string ProgressText { get; private set; } = "Testing latency...";
+        [ObservableProperty] public partial string StatusText { get; private set; } = "Ready";
+        [ObservableProperty] public partial double ProgressValue { get; private set; }
+        [ObservableProperty] public partial string ProgressPercentage { get; private set; } = "0%";
+        [ObservableProperty] public partial bool HasResults { get; private set; }
 
         private StackPanel? _mainPanel;
+        private LatencyResult[][]? _currentMatrix;
 
         public void SetMainPanel(StackPanel panel)
         {
@@ -132,6 +64,8 @@ namespace ProcessorLatencyTool.ViewModels
                 }
             }
 
+            _currentMatrix = matrix;
+            HasResults = false;
             BuildLatencyGrid(matrix, _mainPanel, true);
         }
 
@@ -141,6 +75,7 @@ namespace ProcessorLatencyTool.ViewModels
             StatusText = "Starting measurements...";
             ProgressValue = 0;
             ProgressPercentage = "0%";
+            HasResults = false;
 
             var progress = new Progress<(int, int)>(onProgress =>
             {
@@ -168,7 +103,76 @@ namespace ProcessorLatencyTool.ViewModels
                 }
 
                 StatusText = "Measurements completed";
+                HasResults = true;
             });
+        }
+
+        [RelayCommand]
+        private async Task ExportToCsvAsync()
+        {
+            if (_currentMatrix == null)
+            {
+                StatusText = "No data to export";
+                return;
+            }
+
+            if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                StatusText = "Cannot access application window";
+                return;
+            }
+
+            var mainWindow = desktop.MainWindow;
+            if (mainWindow == null)
+            {
+                StatusText = "Cannot access main window";
+                return;
+            }
+
+            var file = await mainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save Latency Data",
+                DefaultExtension = "csv",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("CSV Files")
+                    {
+                        Patterns = ["*.csv"]
+                    }
+                ]
+            });
+
+            if (file == null)
+                return;
+
+            try
+            {
+                var csv = new StringBuilder();
+                var coreCount = _currentMatrix.Length;
+
+                // Add header row
+                csv.AppendLine("Source Core,Target Core,Mean Latency (ns),Standard Deviation (ns),Min Latency (ns),Max Latency (ns),Sample Count");
+
+                // Add data rows
+                for (var i = 0; i < coreCount; i++)
+                {
+                    for (var j = 0; j < coreCount; j++)
+                    {
+                        var result = _currentMatrix[i][j];
+                        csv.AppendLine($"{i},{j},{result.MeanLatency:F2},{result.StandardDeviation:F2},{result.MinLatency:F2},{result.MaxLatency:F2},{result.SampleCount}");
+                    }
+                }
+
+                await using var stream = await file.OpenWriteAsync();
+                await using var writer = new StreamWriter(stream);
+                await writer.WriteAsync(csv.ToString());
+
+                StatusText = "Data exported successfully";
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Export failed: {ex.Message}";
+            }
         }
 
         private static void BuildLatencyGrid(LatencyResult[][] matrix, StackPanel panel, bool isInit = false)
@@ -329,6 +333,7 @@ namespace ProcessorLatencyTool.ViewModels
                 }
             }
 
+            _currentMatrix = matrix;
             return matrix;
         }
     }
