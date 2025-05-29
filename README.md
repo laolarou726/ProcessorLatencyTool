@@ -12,8 +12,16 @@ This is a simple tool used to test the latency of the CPU. Fully cross-platform 
 
 ![3369ad6e3f3066366135975419e072ed](https://github.com/user-attachments/assets/3a0e7de3-c04b-4004-bc0c-a1f9defeb92d)
 
+## Status
+
+|Platform|Status                                            |
+|:-------|:-------------------------------------------------|
+|Windows |:white_check_mark: Fully Support                  |
+|macOS   |:construction: Result looks incorrect, help needed|
+|Linux   |:white_check_mark: Fully Support                  |
+
 ## :notebook: How to use?
 
-1. Download coresponding target platform from [Releases Page](https://github.com/laolarou726/ProcessorLatencyTool/releases)
+1. Download corresponding target platform from [Releases Page](https://github.com/laolarou726/ProcessorLatencyTool/releases)
 2. Decompress the file and run the program
 3. Click `Start Test` to start the test and get the result
