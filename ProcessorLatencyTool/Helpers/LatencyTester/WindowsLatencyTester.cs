@@ -1,8 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using System.Threading;
 
 namespace ProcessorLatencyTool.Helpers.LatencyTester;
 
@@ -14,6 +12,10 @@ public sealed partial class WindowsLatencyTester : LatencyTesterBase
 
     [LibraryImport("kernel32.dll", EntryPoint = "SetThreadAffinityMask")]
     private static partial UIntPtr SetThreadAffinityMask(IntPtr hThread, UIntPtr dwThreadAffinityMask);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "SetThreadPriority")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetThreadPriority(IntPtr hThread, int nPriority);
 
     protected override void SetThreadAffinity(int core)
     {
@@ -28,16 +30,17 @@ public sealed partial class WindowsLatencyTester : LatencyTesterBase
 
     protected override void SetThreadPriority()
     {
-        Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        var handle = GetCurrentThread();
+        if (!SetThreadPriority(handle, 15)) // THREAD_PRIORITY_TIME_CRITICAL
+        {
+            throw new Exception($"Failed to set thread priority: {Marshal.GetLastWin32Error()}");
+        }
     }
 
-    protected override ulong GetCurrentTimer()
+    protected override void SetThreadQoS()
     {
-        return (ulong)Stopwatch.GetTimestamp();
+        // Windows doesn't have a direct equivalent to QoS classes
+        // We use the highest thread priority instead
+        SetThreadPriority();
     }
-
-    protected override double GetTimerPeriodNs()
-    {
-        return 1_000_000_000.0 / Stopwatch.Frequency;
-    }
-} 
+}

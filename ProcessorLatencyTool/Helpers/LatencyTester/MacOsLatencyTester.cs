@@ -18,6 +18,9 @@ public sealed unsafe partial class MacOsLatencyTester : LatencyTesterBase
     [LibraryImport("libSystem.dylib", EntryPoint = "pthread_setname_np")]
     private static partial int pthread_setname_np(byte* name);
 
+    [LibraryImport("libSystem.dylib", EntryPoint = "pthread_set_qos_class_self_np")]
+    private static partial int pthread_set_qos_class_self_np(int qos_class, int relative_priority);
+
     [LibraryImport("arm64_registers", EntryPoint = "set_realtime_policy")]
     private static partial int set_realtime_policy();
 
@@ -39,7 +42,7 @@ public sealed unsafe partial class MacOsLatencyTester : LatencyTesterBase
         var threadNameBytes = new byte[64];
         var nameBytes = System.Text.Encoding.UTF8.GetBytes(name);
         Array.Copy(nameBytes, threadNameBytes, Math.Min(nameBytes.Length, 63));
-        
+
         fixed (byte* namePtr = threadNameBytes)
         {
             pthread_setname_np(namePtr);
@@ -111,22 +114,9 @@ public sealed unsafe partial class MacOsLatencyTester : LatencyTesterBase
         // This is handled in SetThreadAffinity
     }
 
-    protected override ulong GetCurrentTimer()
+    protected override void SetThreadQoS()
     {
-        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-        {
-            return ReadCntvctEl0();
-        }
-        return (ulong)Stopwatch.GetTimestamp();
-    }
-
-    protected override double GetTimerPeriodNs()
-    {
-        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-        {
-            var freq = ReadCntfrqEl0();
-            return 1.0 / freq * 1_000_000_000.0;
-        }
-        return 1_000_000_000.0 / Stopwatch.Frequency;
+        // QOS_CLASS_USER_INTERACTIVE = 0x21
+        pthread_set_qos_class_self_np(0x21, 0);
     }
 }

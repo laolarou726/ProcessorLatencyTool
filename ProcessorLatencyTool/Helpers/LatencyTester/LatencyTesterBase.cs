@@ -1,14 +1,15 @@
-﻿using System.Threading;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using ProcessorLatencyTool.Models;
 
 namespace ProcessorLatencyTool.Helpers.LatencyTester;
 
-public abstract class LatencyTesterBase
+public abstract partial class LatencyTesterBase
 {
     private const int CacheLineSize = 64;
     private const int NumSamples = 1000;
@@ -21,10 +22,56 @@ public abstract class LatencyTesterBase
         public bool Value;
     }
 
+    [LibraryImport("arm64_registers", EntryPoint = "read_cntvct_el0", SetLastError = true)]
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("osx")]
+    private static partial ulong ReadCntvctEl0();
+
+    [LibraryImport("arm64_registers", EntryPoint = "read_cntfrq_el0", SetLastError = true)]
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("osx")]
+    private static partial ulong ReadCntfrqEl0();
+
     protected abstract void SetThreadAffinity(int core);
     protected abstract void SetThreadPriority();
-    protected abstract ulong GetCurrentTimer();
-    protected abstract double GetTimerPeriodNs();
+    protected abstract void SetThreadQoS();
+
+    protected virtual ulong GetCurrentTimer()
+    {
+        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            try
+            {
+                return ReadCntvctEl0();
+            }
+            catch
+            {
+                return (ulong)Stopwatch.GetTimestamp();
+            }
+        }
+        return (ulong)Stopwatch.GetTimestamp();
+    }
+
+    protected virtual double GetTimerPeriodNs()
+    {
+        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            try
+            {
+                var freq = ReadCntfrqEl0();
+                if (freq == 0)
+                {
+                    return 1_000_000_000.0 / Stopwatch.Frequency;
+                }
+                return 1_000_000_000.0 / freq;
+            }
+            catch
+            {
+                return 1_000_000_000.0 / Stopwatch.Frequency;
+            }
+        }
+        return 1_000_000_000.0 / Stopwatch.Frequency;
+    }
 
     public LatencyResult MeasureLatencyBetweenCores(int coreA, int coreB)
     {
@@ -37,6 +84,7 @@ public abstract class LatencyTesterBase
         {
             SetThreadAffinity(coreB);
             SetThreadPriority();
+            SetThreadQoS();
             barrier.SignalAndWait();
 
             var value = false;
@@ -50,22 +98,23 @@ public abstract class LatencyTesterBase
 
         SetThreadAffinity(coreA);
         SetThreadPriority();
+        SetThreadQoS();
         barrier.SignalAndWait();
 
         var value = true;
         for (var sample = 0; sample < NumSamples; sample++)
         {
             var start = GetCurrentTimer();
-            
+
             for (var trip = 0; trip < NumRoundTrips; trip++)
             {
                 while (Volatile.Read(ref ownedByPong.Value) != value) { }
                 Volatile.Write(ref ownedByPing.Value, value);
                 value = !value;
             }
-            
+
             var end = GetCurrentTimer();
-                
+
             var duration = (end - start) * GetTimerPeriodNs();
             results.Add(duration / NumRoundTrips / 2.0); // Divide by 2 for one-way latency
         }
@@ -101,7 +150,7 @@ public abstract class LatencyTesterBase
         {
             return new MacOsLatencyTester();
         }
-        
+
         throw new PlatformNotSupportedException("Current platform is not supported.");
     }
 }

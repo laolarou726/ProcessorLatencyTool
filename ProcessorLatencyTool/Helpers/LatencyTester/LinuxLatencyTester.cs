@@ -12,6 +12,15 @@ public sealed unsafe partial class LinuxLatencyTester : LatencyTesterBase
     [LibraryImport("libc", EntryPoint = "sched_setaffinity", SetLastError = true)]
     private static partial int SchedSetAffinity(int pid, int cpusetsize, UIntPtr* mask);
 
+    [LibraryImport("libc", EntryPoint = "sched_setscheduler", SetLastError = true)]
+    private static partial int SchedSetScheduler(int pid, int policy, ref SchedParam param);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SchedParam
+    {
+        public int sched_priority;
+    }
+
     protected override void SetThreadAffinity(int core)
     {
         var mask = new UIntPtr(1UL << core);
@@ -24,16 +33,17 @@ public sealed unsafe partial class LinuxLatencyTester : LatencyTesterBase
 
     protected override void SetThreadPriority()
     {
-        Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        var param = new SchedParam { sched_priority = 99 }; // SCHED_FIFO with highest priority
+        var result = SchedSetScheduler(0, 1, ref param); // 1 = SCHED_FIFO
+        if (result != 0)
+        {
+            throw new Exception($"Failed to set thread priority: {Marshal.GetLastWin32Error()}");
+        }
     }
 
-    protected override ulong GetCurrentTimer()
+    protected override void SetThreadQoS()
     {
-        return (ulong)Stopwatch.GetTimestamp();
+        // Linux uses SCHED_FIFO for real-time scheduling
+        SetThreadPriority();
     }
-
-    protected override double GetTimerPeriodNs()
-    {
-        return 1_000_000_000.0 / Stopwatch.Frequency;
-    }
-} 
+}
